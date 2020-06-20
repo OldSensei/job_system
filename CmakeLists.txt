@@ -1,0 +1,33 @@
+cmake_minimum_required(VERSION 3.14)
+
+project(job_system VERSION 0.1 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
+
+set(SOURCE_DIR "${PROJECT_SOURCE_DIR}/source")
+
+set(PRIVATE_SOURCES 
+	${SOURCE_DIR}/private/job_creator.hpp
+	${SOURCE_DIR}/private/handle_array.hpp
+)
+
+source_group("private" FILES ${PRIVATE_SOURCES})
+
+set(JOB_SYSTEM_SOURCES
+	${SOURCE_DIR}/context.hpp
+	${SOURCE_DIR}/task.hpp
+	${SOURCE_DIR}/task_description.hpp
+	${SOURCE_DIR}/task_executor.hpp
+	${SOURCE_DIR}/task_factory.hpp
+	${SOURCE_DIR}/task_group.hpp
+)
+
+source_group("JobSystem" FILES ${JOB_SYSTEM_SOURCES})
+
+
+add_executable( ${PROJECT_NAME} 
+		${SOURCE_DIR}/executables/main.cpp
+		${PRIVATE_SOURCES}
+		${JOB_SYSTEM_SOURCES}
+)
