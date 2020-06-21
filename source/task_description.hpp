@@ -1,15 +1,17 @@
 #pragma once
 
+#include "config.hpp"
 #include "context.hpp"
 #include "task_group.hpp"
 
 
+template<std::uint32_t>
 class TaskDescriptionPool;
 
 class TaskDescription
 {
 public:
-	TaskDescription(ContextPool& contextPool, ContextID context, TaskGroupPool& taskGroupPool, TaskGroupID taskgroup, size_t nodeId, TaskDescriptionPool& descriptionPool) :
+	TaskDescription(ContextPool<Detail::POOL_SIZE>& contextPool, ContextID context, TaskGroupPool<Detail::POOL_SIZE>& taskGroupPool, TaskGroupID taskgroup, size_t nodeId, TaskDescriptionPool<Detail::POOL_SIZE>& descriptionPool) :
 		m_taskGroupID(taskgroup),
 		m_contextID(context),
 		m_taskNodeId(nodeId),
@@ -19,13 +21,13 @@ public:
 	{}
 
 	[[nodiscard]]
-	ContextPool& getContextPool() noexcept { return m_contextPool; }
+	auto& getContextPool() noexcept { return m_contextPool; }
 
 	[[nodiscard]]
-	TaskDescriptionPool& getTaskDescriptionPool() noexcept { return m_taskDescriptionPool; }
+	auto& getTaskDescriptionPool() noexcept { return m_taskDescriptionPool; }
 
 	[[nodiscard]]
-	TaskGroupPool& getTaskGroupPool() noexcept { return m_taskGroupPool; }
+	auto& getTaskGroupPool() noexcept { return m_taskGroupPool; }
 
 	[[nodiscard]]
 	TaskGroupID getTaskGroupID() const noexcept { return m_taskGroupID; } 
@@ -47,16 +49,17 @@ private:
 	ContextID m_contextID;
 	size_t m_taskNodeId;
 
-	ContextPool& m_contextPool;
-	TaskDescriptionPool& m_taskDescriptionPool;
-	TaskGroupPool& m_taskGroupPool;
+	ContextPool<Detail::POOL_SIZE>& m_contextPool;
+	TaskDescriptionPool<Detail::POOL_SIZE>& m_taskDescriptionPool;
+	TaskGroupPool<Detail::POOL_SIZE>& m_taskGroupPool;
 };
 
+template<std::uint32_t PoolSize>
 class TaskDescriptionPool
 {
 public:
 	template<typename Callable, typename ... Args>
-	TaskDescription* createTaskDescription(ContextPool& ctxPool, TaskGroupPool& tgPool, Callable&& callable, Args&&... args)
+	TaskDescription* createTaskDescription(ContextPool<PoolSize>& ctxPool, TaskGroupPool<PoolSize>& tgPool, Callable&& callable, Args&&... args)
 	{
 		//TODO: handle auto deleter in case of FUBAR
 		auto contextHandle = ctxPool.createContext(std::forward<Callable>(callable), std::forward<Args>(args)...);
@@ -71,7 +74,7 @@ public:
 	}
 
 	template<typename Callable, typename ... Args>
-	TaskDescription* createLinkedTaskDescription(ContextPool& ctxPool, TaskGroupPool& tgPool, const TaskGroupID& groupId, size_t parentNodeId, Callable&& callable, Args&&... args)
+	TaskDescription* createLinkedTaskDescription(ContextPool<PoolSize>& ctxPool, TaskGroupPool<PoolSize>& tgPool, const TaskGroupID& groupId, size_t parentNodeId, Callable&& callable, Args&&... args)
 	{
 		//TODO: handle auto deleter in case of FUBAR
 		auto contextHandle = ctxPool.createContext(std::forward<Callable&&>(callable), std::forward<Args>(args)...);
@@ -83,13 +86,8 @@ public:
 
 		auto taskDescriptionHandle = m_pool.emplace(ctxPool, contextHandle, tgPool, groupId, nodeId, *this);
 		return &m_pool.get(taskDescriptionHandle);
-
-		//auto handle = JobSystem::g_cp.createContext(std::forward<Callable&&>(callable), *this, std::forward<Args>(args)...);
-		//auto nodeId = m_taskGroup->addNode(handle);
-		//m_taskGroup->link( getTaskNodeId(), nodeId );
 	}
 
 private:
-	//TODO: Remove HARDCODE
-	HandleArray<TaskDescription, std::uint16_t, 20 > m_pool;
+	HandleArray<TaskDescription, std::uint16_t, PoolSize > m_pool;
 };

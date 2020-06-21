@@ -175,19 +175,6 @@ public:
 		return result;
 	}
 
-	void print() const
-	{
-		//for (const auto& node : m_nodes)
-		//{
-		//	std::cout << "node " << node.getValue() << ": ";
-		//	for (const auto& idx : node.getAdjancedNodes())
-		//	{
-		//		std::cout << m_nodes[idx].getValue() << " -> ";
-		//	}
-		//	std::cout << "null" << std::endl;
-		//}
-	}
-
 	Context* get(size_t index) const
 	{
 		return m_nodes[index].getValue();
@@ -249,6 +236,7 @@ private:
 
 using TaskGroupID = std::uint16_t;
 
+template<std::uint32_t PoolSize>
 class TaskGroupPool
 {
 public:
@@ -263,5 +251,5 @@ public:
 	}
 
 private:
-	HandleArray<TaskGroup, std::uint16_t, 20> m_pool;
+	HandleArray<TaskGroup, std::uint16_t, PoolSize> m_pool;
 };

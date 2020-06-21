@@ -1,4 +1,5 @@
 #pragma once
+#include "config.hpp"
 #include "context.hpp"
 #include "task_description.hpp"
 #include "task.hpp"
@@ -15,7 +16,7 @@ public:
 	}
 
 private:
-	ContextPool m_taskContextPool;
-	TaskGroupPool m_taskGroupPool;
-	TaskDescriptionPool m_taskDescriptionPool;
+	ContextPool< Detail::POOL_SIZE > m_taskContextPool;
+	TaskGroupPool<Detail::POOL_SIZE> m_taskGroupPool;
+	TaskDescriptionPool<Detail::POOL_SIZE> m_taskDescriptionPool;
 };

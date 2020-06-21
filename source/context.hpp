@@ -16,6 +16,7 @@ struct Context
 	std::any returnedValue;
 };
 
+template<std::uint32_t PoolSize>
 class ContextPool
 {
 public:
@@ -39,5 +40,5 @@ public:
 	}
 
 private:
-	HandleArray<Context, std::uint16_t, 10> m_pool;
+	HandleArray<Context, std::uint16_t, PoolSize> m_pool;
 };
