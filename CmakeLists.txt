@@ -5,6 +5,8 @@ project(job_system VERSION 0.1 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+set(CMAKE_CONFIGURATION_TYPES Debug Release)
+
 set(SOURCE_DIR "${PROJECT_SOURCE_DIR}/source")
 
 set(PRIVATE_SOURCES 
@@ -15,6 +17,7 @@ set(PRIVATE_SOURCES
 source_group("private" FILES ${PRIVATE_SOURCES})
 
 set(JOB_SYSTEM_SOURCES
+	${SOURCE_DIR}/config.hpp
 	${SOURCE_DIR}/context.hpp
 	${SOURCE_DIR}/task.hpp
 	${SOURCE_DIR}/task_description.hpp
