@@ -14,9 +14,43 @@ class Task
 {
 public:
 
-	Task( TaskDescription* description ) :
+	Task( TaskDescription* description ) noexcept :
 		m_description(description)
 	{}
+
+	Task(const Task& other) noexcept :
+		m_description(other.m_description)
+	{
+		m_description->increaseReferenceCount();
+	}
+
+	Task(Task&& other) noexcept :
+		m_description(other.m_description)
+	{
+		other.m_description = nullptr;
+	}
+
+	~Task()
+	{
+		if (m_description)
+		{
+			m_description->decreaseReferenceCount();
+		}
+	}
+
+	Task& operator=(Task& other) noexcept
+	{
+		if (&other != this)
+		{
+			if (m_description)
+			{
+				m_description->decreaseReferenceCount();
+			}
+
+			m_description = other.m_description;
+			m_description->increaseReferenceCount();
+		}
+	}
 
 	template<typename Callable, typename ... Args>
 	auto then(Callable&& callable, Args&&... args)
@@ -31,6 +65,8 @@ public:
 			std::forward<Callable>(callable),
 			*this,
 			std::forward<Args>(args)...);
+
+		m_description->increaseReferenceCount();
 
 		return Task< std::invoke_result_t<Callable, std::add_lvalue_reference_t< std::remove_pointer_t< decltype(this) >, Args...> > >(taskDescriptionPointer);
 	}

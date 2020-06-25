@@ -3,6 +3,7 @@
 #include <queue>
 #include <cstdint>
 #include <iostream>
+#include <mutex>
 
 template<typename UnderlyingType, typename HandleType, std::uint32_t size>
 class HandleArray
@@ -48,6 +49,7 @@ public:
 private:
 	HandleType getFreeHandle()
 	{
+		std::lock_guard guard(m_handleMutex);
 		auto handle = m_freeHandles.front();
 		m_freeHandles.pop();
 		return handle;
@@ -55,6 +57,7 @@ private:
 
 	void putHandleToFree(const HandleType& handle)
 	{
+		std::lock_guard guard(m_handleMutex);
 		m_freeHandles.push( handle );
 	}
 
@@ -62,5 +65,6 @@ private:
 	using StorageType = std::aligned_storage_t<sizeof(UnderlyingType), alignof(UnderlyingType)>;
 
 	std::array< StorageType, size > m_storage;
+	std::mutex m_handleMutex;
 	std::queue<HandleType> m_freeHandles;
 };

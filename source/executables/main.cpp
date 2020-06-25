@@ -31,11 +31,11 @@ private:
 	std::uint8_t m_n;
 };
 
-int main(int argc, char* argv[])
+int main(int argc, const char* argv[])
 {
 	std::cout << "Task factory: " << std::endl;
-	TaskFactory tf;
-	auto task = tf.createTask([]() -> void { std::cout << "Hello from t1!!!" << std::endl; });
+	std::unique_ptr<TaskFactory> tf = std::make_unique<TaskFactory>();
+	auto task = tf->createTask([]() -> void { std::cout << "Hello from t1!!!" << std::endl; });
 	task.then([](Task<void>&) -> void { std::cout << "Hello from t2!!!" << std::endl; });
 
 	std::cout << "Create task executer: " << std::endl;

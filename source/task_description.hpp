@@ -44,6 +44,18 @@ public:
 		return m_contextPool.get(m_contextID).returnedValue;
 	}
 
+	void increaseReferenceCount() noexcept
+	{
+		auto& taskgroup = m_taskGroupPool.get(m_taskGroupID);
+		taskgroup.increaseReferenceCount(m_taskNodeId);
+	}
+
+	void decreaseReferenceCount()
+	{
+		auto& taskgroup = m_taskGroupPool.get(m_taskGroupID);
+		taskgroup.decreaseReferenceCount(m_taskNodeId);
+	}
+
 private:
 	TaskGroupID m_taskGroupID;
 	ContextID m_contextID;
