@@ -7,6 +7,8 @@
 #include <atomic>
 
 #include "private/handle_array.hpp"
+#include "private/job_creator.hpp"
+
 #include "context.hpp"
 
 template<class ValueType, class IndexType>
@@ -14,15 +16,20 @@ class TaskNode
 {
 public:
 	template<class Value = ValueType>
-	TaskNode(Value&& value) : m_value(std::forward<Value>(value)), m_unfinishedParentTasks(0), m_referenceCount(1)
+	TaskNode(Value&& value) : m_value(std::forward<Value>(value)), m_unfinishedParentTasks(0)
+	{}
+
+	template<typename ... Args>
+	TaskNode(Args&& ... args) :
+		m_value{std::forward<Args>(args)...},
+		m_unfinishedParentTasks(0)
 	{}
 
 	TaskNode(TaskNode&& value) noexcept :
 		m_adjanced(std::move(value.m_adjanced)),
 		m_parents(std::move(value.m_parents)),
 		m_value(std::move(value.m_value)),
-		m_unfinishedParentTasks(value.m_unfinishedParentTasks.load()),
-		m_referenceCount(value.m_referenceCount.load())
+		m_unfinishedParentTasks(value.m_unfinishedParentTasks.load())
 	{}
 
 	void addAdjancedNode(const IndexType& nodeIndex)
@@ -46,7 +53,12 @@ public:
 		return m_parents;
 	}
 
-	ValueType getValue() const
+	ValueType& getValue()
+	{
+		return m_value;
+	}
+
+	const ValueType& getValue() const
 	{
 		return m_value;
 	}
@@ -67,40 +79,34 @@ public:
 		--m_unfinishedParentTasks;
 	}
 
-	void decreaseReferenceCount()
-	{
-		assert( m_referenceCount > 0 );
-		--m_referenceCount;
-	}
-
-	void increaseReferenceCount()
-	{
-		++m_referenceCount;
-	}
-
 private:
 	ValueType m_value;
 	std::vector<IndexType> m_adjanced;
 	std::vector<IndexType> m_parents;
 	std::atomic<std::uint32_t> m_unfinishedParentTasks;
-	std::atomic<std::uint64_t> m_referenceCount;
 };
 
 class TaskGroup
 {
 
 public:
+	using NodeType = TaskNode<Context, size_t>;
+
 	struct TopologicalRound
 	{
-		std::vector< TaskNode<Context*, size_t>* > taskRound;
+		std::vector< NodeType* > taskRound;
 		std::uint32_t currentTask = std::numeric_limits<std::uint32_t>::max();
 	};
 
-	size_t addNode(Context* value)
+	template<typename Callable, typename ... Args>
+	size_t addNode(Callable&& callable, Args&&... args)
 	{
+		using DataType = Detail::PacketTask<Callable, Args ...>;
+		auto job = Detail::JobCreator<DataType>::createJob();
+		auto data = std::make_shared<DataType>(std::forward<Callable>(callable), std::forward<Args>(args)...);
+
 		std::lock_guard guard(m_nodeMutex);
-		m_nodes.emplace_back(value);
-		m_nodes.back().increaseReferenceCount();
+		m_nodes.emplace_back(std::move(job), std::move(data), std::any());
 
 		size_t idx = m_nodes.size() - 1;
 		return idx;
@@ -114,7 +120,7 @@ public:
 		toNode.addParent(from);
 	}
 
-	TaskNode<Context*, size_t>* getAvailableTask()
+	NodeType* getAvailableTask()
 	{
 		if (m_currentRound >= m_topological.size())
 		{
@@ -147,18 +153,18 @@ public:
 		return nullptr;
 	}
 
-	void hasComplited(TaskNode<Context*, size_t>& task)
+	void hasComplited(NodeType& node)
 	{
-		for(const auto& index : task.getAdjancedNodes() )
+		for(const auto& index : node.getAdjancedNodes() )
 		{
 			m_nodes[index].onParentTaskFinished();
 		}
 
-		const auto& parents = task.getParentsNodes();
-		for (const auto& parentIndex : parents)
-		{
-			m_nodes[parentIndex].decreaseReferenceCount();
-		}
+		//const auto& parents = task.getParentsNodes();
+		//for (const auto& parentIndex : parents)
+		//{
+		//	m_nodes[parentIndex].decreaseReferenceCount();
+		//}
 
 	}
 
@@ -199,19 +205,19 @@ public:
 		return result;
 	}
 
-	Context* get(size_t index) const
+	Context& get(size_t index)
 	{
 		return m_nodes[index].getValue();
 	}
 
-	inline void decreaseReferenceCount(size_t nodeID)
+	inline void decreaseReferenceCount()
 	{
-		m_nodes[nodeID].decreaseReferenceCount();
+		//m_nodes[nodeID].decreaseReferenceCount();
 	}
 
-	inline void increaseReferenceCount(size_t nodeID)
+	inline void increaseReferenceCount()
 	{
-		m_nodes[nodeID].increaseReferenceCount();
+		//m_nodes[nodeID].increaseReferenceCount();
 	}
 
 private:
@@ -264,7 +270,8 @@ private:
 
 	//temporary
 	std::mutex m_nodeMutex;
-	std::vector<TaskNode<Context*, size_t>> m_nodes;
+	std::deque<NodeType> m_nodes;
+	//std::vector<TaskNode<Context*, size_t>> m_nodes;
 	std::vector<TopologicalRound> m_topological;
 	std::atomic<std::uint32_t> m_currentRound = 0;
 };

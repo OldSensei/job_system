@@ -55,13 +55,12 @@ public:
 	template<typename Callable, typename ... Args>
 	auto then(Callable&& callable, Args&&... args)
 	{
-		auto& contextPool = m_description->getContextPool();
 		auto& descriptionPool = m_description->getTaskDescriptionPool();
 		auto& taskGroupPool = m_description->getTaskGroupPool();
 		auto taskGroupID = m_description->getTaskGroupID();
 		auto taskNodeId = m_description->getNodeID();
 
-		auto taskDescriptionPointer = descriptionPool.createLinkedTaskDescription(contextPool, taskGroupPool, taskGroupID, taskNodeId,
+		auto taskDescriptionPointer = descriptionPool.createLinkedTaskDescription(taskGroupPool, taskGroupID, taskNodeId,
 			std::forward<Callable>(callable),
 			*this,
 			std::forward<Args>(args)...);

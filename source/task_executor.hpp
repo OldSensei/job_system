@@ -20,7 +20,7 @@ public:
 
 	Semaphore(const Semaphore&) = delete;
 
-	Semaphore(Semaphore&& other) :
+	Semaphore(Semaphore&& other) noexcept :
 		m_count(other.m_count),
 		MAX_COUNT(other.MAX_COUNT)
 	{
@@ -78,8 +78,9 @@ public:
 			if (task)
 			{
 				m_queueMutex.unlock();
-				auto* ctx = task->getValue();
-				ctx->job(ctx->data, ctx->returnedValue);
+				auto& ctx = task->getValue();
+				ctx.job(ctx.data, ctx.returnedValue);
+
 				taskgroup->hasComplited(*task);
 				return true;
 			}
