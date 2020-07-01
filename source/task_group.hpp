@@ -11,17 +11,21 @@
 
 #include "context.hpp"
 
+class TaskGroup;
+
 template<class ValueType, class IndexType>
 class TaskNode
 {
 public:
 	template<class Value = ValueType>
-	TaskNode(Value&& value) : m_value(std::forward<Value>(value)), m_unfinishedParentTasks(0)
+	TaskNode(TaskGroup& tg, IndexType id, Value&& value) : m_value(std::forward<Value>(value)), m_ID(id), m_group(&tg), m_unfinishedParentTasks(0)
 	{}
 
 	template<typename ... Args>
-	TaskNode(Args&& ... args) :
+	TaskNode(TaskGroup& tg, IndexType id, Args&& ... args) :
 		m_value{std::forward<Args>(args)...},
+		m_ID(id),
+		m_group(&tg),
 		m_unfinishedParentTasks(0)
 	{}
 
@@ -29,6 +33,8 @@ public:
 		m_adjanced(std::move(value.m_adjanced)),
 		m_parents(std::move(value.m_parents)),
 		m_value(std::move(value.m_value)),
+		m_group(std::move(value.m_group)),
+		m_ID(value.m_ID),
 		m_unfinishedParentTasks(value.m_unfinishedParentTasks.load())
 	{}
 
@@ -58,6 +64,11 @@ public:
 		return m_value;
 	}
 
+	TaskGroup& getGroup()
+	{
+		return *m_group;
+	}
+
 	const ValueType& getValue() const
 	{
 		return m_value;
@@ -79,8 +90,15 @@ public:
 		--m_unfinishedParentTasks;
 	}
 
+	IndexType getID()
+	{
+		return m_ID;
+	}
+
 private:
+	IndexType m_ID;
 	ValueType m_value;
+	TaskGroup* m_group;
 	std::vector<IndexType> m_adjanced;
 	std::vector<IndexType> m_parents;
 	std::atomic<std::uint32_t> m_unfinishedParentTasks;
@@ -106,9 +124,9 @@ public:
 		auto data = std::make_shared<DataType>(std::forward<Callable>(callable), std::forward<Args>(args)...);
 
 		std::lock_guard guard(m_nodeMutex);
-		m_nodes.emplace_back(std::move(job), std::move(data), std::any());
+		size_t idx = m_nodes.size();
+		m_nodes.emplace_back(*this, idx, std::move(job), std::move(data), std::any());
 
-		size_t idx = m_nodes.size() - 1;
 		return idx;
 	}
 
@@ -118,6 +136,12 @@ public:
 		fromNode.addAdjancedNode(to);
 		auto& toNode = m_nodes[to];
 		toNode.addParent(from);
+	}
+
+	NodeType* getTaskNode(size_t nodeId)
+	{
+		assert(nodeId < m_nodes.size());
+		return &m_nodes[nodeId];
 	}
 
 	NodeType* getAvailableTask()
@@ -159,12 +183,6 @@ public:
 		{
 			m_nodes[index].onParentTaskFinished();
 		}
-
-		//const auto& parents = task.getParentsNodes();
-		//for (const auto& parentIndex : parents)
-		//{
-		//	m_nodes[parentIndex].decreaseReferenceCount();
-		//}
 
 	}
 
@@ -210,14 +228,15 @@ public:
 		return m_nodes[index].getValue();
 	}
 
-	inline void decreaseReferenceCount()
+	void decreaseReferenceCount()
 	{
-		//m_nodes[nodeID].decreaseReferenceCount();
+		assert(m_refCount);
+		--m_refCount;
 	}
 
-	inline void increaseReferenceCount()
+	void increaseReferenceCount()
 	{
-		//m_nodes[nodeID].increaseReferenceCount();
+		++m_refCount;
 	}
 
 private:
@@ -271,9 +290,9 @@ private:
 	//temporary
 	std::mutex m_nodeMutex;
 	std::deque<NodeType> m_nodes;
-	//std::vector<TaskNode<Context*, size_t>> m_nodes;
 	std::vector<TopologicalRound> m_topological;
 	std::atomic<std::uint32_t> m_currentRound = 0;
+	std::atomic<std::uint32_t> m_refCount = 1;
 };
 
 

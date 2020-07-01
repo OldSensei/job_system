@@ -12,11 +12,16 @@ public:
 	[[nodiscard]]
 	auto createTask(Callable&& callable, Args&&... args)
 	{
-		auto taskDescriptionPointer = m_taskDescriptionPool.createTaskDescription(m_taskGroupPool, std::forward<Callable>(callable), std::forward<Args>(args)...);
-		return Task<std::invoke_result_t<Callable, Args...>>(taskDescriptionPointer);
+		//TODO: handle auto deleter in case of FUBAR
+		auto taskGroupHandle = m_taskGroupPool.createTaskGroup();
+		auto& tg = m_taskGroupPool.get(taskGroupHandle);
+
+		auto nodeId = tg.addNode(std::forward<Callable>(callable), std::forward<Args>(args)...);
+		auto* taskNode = tg.getTaskNode(nodeId);
+
+		return Task<std::invoke_result_t<Callable, Args...>>(taskNode);
 	}
 
 private:
 	TaskGroupPool<Detail::POOL_SIZE> m_taskGroupPool = {};
-	TaskDescriptionPool<Detail::POOL_SIZE> m_taskDescriptionPool = {};
 };

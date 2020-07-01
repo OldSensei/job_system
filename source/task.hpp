@@ -7,34 +7,37 @@
 #include <forward_list>
 #include <list>
 
-#include "task_description.hpp"
+#include "task_group.hpp"
 
 template<typename ReturnedType>
 class Task
 {
 public:
 
-	Task( TaskDescription* description ) noexcept :
-		m_description(description)
-	{}
+	Task( TaskGroup::NodeType* taskNode ) noexcept :
+		m_taskNode(taskNode)
+	{
+		assert(m_taskNode);
+		m_taskNode->getGroup().increaseReferenceCount();
+	}
 
 	Task(const Task& other) noexcept :
-		m_description(other.m_description)
+		m_taskNode(other.m_taskNode)
 	{
-		m_description->increaseReferenceCount();
+		m_taskNode->getGroup().increaseReferenceCount();
 	}
 
 	Task(Task&& other) noexcept :
-		m_description(other.m_description)
+		m_taskNode(other.m_taskNode)
 	{
-		other.m_description = nullptr;
+		other.m_taskNode = nullptr;
 	}
 
 	~Task()
 	{
-		if (m_description)
+		if (m_taskNode)
 		{
-			m_description->decreaseReferenceCount();
+			m_taskNode->getGroup().decreaseReferenceCount();
 		}
 	}
 
@@ -42,38 +45,34 @@ public:
 	{
 		if (&other != this)
 		{
-			if (m_description)
+			if (m_taskNode)
 			{
-				m_description->decreaseReferenceCount();
+				m_taskNode->getGroup().decreaseReferenceCount();
 			}
 
-			m_description = other.m_description;
-			m_description->increaseReferenceCount();
+			m_taskNode = other.m_description;
+			m_taskNode->getGroup().increaseReferenceCount();
 		}
 	}
 
 	template<typename Callable, typename ... Args>
 	auto then(Callable&& callable, Args&&... args)
 	{
-		auto& descriptionPool = m_description->getTaskDescriptionPool();
-		auto& taskGroupPool = m_description->getTaskGroupPool();
-		auto taskGroupID = m_description->getTaskGroupID();
-		auto taskNodeId = m_description->getNodeID();
+		auto& group = m_taskNode->getGroup();
 
-		auto taskDescriptionPointer = descriptionPool.createLinkedTaskDescription(taskGroupPool, taskGroupID, taskNodeId,
-			std::forward<Callable>(callable),
-			*this,
-			std::forward<Args>(args)...);
+		auto nodeID = group.addNode(std::forward<Callable>(callable), *this, std::forward<Args>(args)...);
+		group.link(m_taskNode->getID(),nodeID);
 
-		m_description->increaseReferenceCount();
-
-		return Task< std::invoke_result_t<Callable, std::add_lvalue_reference_t< std::remove_pointer_t< decltype(this) >, Args...> > >(taskDescriptionPointer);
+		auto* taskNode = group.getTaskNode(nodeID);
+		return Task< std::invoke_result_t<Callable, std::add_lvalue_reference_t< std::remove_pointer_t< decltype(this) >, Args...> > >(taskNode);
 	}
 
 	template<typename Type_ = ReturnedType>
+	[[nodiscard]]
 	typename std::enable_if_t< !std::is_same<Type_, void>::value, Type_ > get()
 	{
-		return std::any_cast<ReturnedType>(m_description->getReturnedValue());
+		assert(m_taskNode);
+		return std::any_cast<ReturnedType>(m_taskNode->getReturnedValue());
 	}
 
 	template<typename Type_ = ReturnedType>
@@ -82,5 +81,6 @@ public:
 
 private:
 	friend class TaskExecuter;
-	TaskDescription* m_description;
+
+	TaskGroup::NodeType* m_taskNode;
 };

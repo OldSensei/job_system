@@ -130,10 +130,9 @@ public:
 	template<typename T>
 	void push(Task<T>& t)
 	{
-		auto* description = t.m_description;
-		auto group = description->getTaskGroup();
-		group->topological();
-		m_highPriorityQueue.push(group);
+		auto& group = t.m_taskNode->getGroup();
+		group.topological();
+		m_highPriorityQueue.push(&group);
 		this->m_semaphore.notify();
 	}
 

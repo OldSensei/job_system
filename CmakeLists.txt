@@ -20,7 +20,6 @@ set(JOB_SYSTEM_SOURCES
 	${SOURCE_DIR}/config.hpp
 	${SOURCE_DIR}/context.hpp
 	${SOURCE_DIR}/task.hpp
-	${SOURCE_DIR}/task_description.hpp
 	${SOURCE_DIR}/task_executor.hpp
 	${SOURCE_DIR}/task_factory.hpp
 	${SOURCE_DIR}/task_group.hpp
