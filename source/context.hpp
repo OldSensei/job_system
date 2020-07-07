@@ -11,6 +11,11 @@ using ContextID = std::uint16_t;
 
 struct Context
 {
+	~Context()
+	{
+		std::cout << "~Context()" << std::endl;
+	}
+
 	void(*job)(std::shared_ptr<void>&, std::any&);
 	std::shared_ptr<void> data;
 	std::any returnedValue;

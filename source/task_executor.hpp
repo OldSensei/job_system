@@ -77,6 +77,11 @@ public:
 
 			if (task)
 			{
+				if (taskgroup->isLastTask())
+				{
+					m_queue.pop();
+				}
+
 				m_queueMutex.unlock();
 				auto& ctx = task->getValue();
 				ctx.job(ctx.data, ctx.returnedValue);

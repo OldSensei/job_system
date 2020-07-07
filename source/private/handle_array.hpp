@@ -5,6 +5,12 @@
 #include <iostream>
 #include <mutex>
 
+template<typename T>
+struct IsStoredID
+{
+	static constexpr bool value = false;
+};
+
 template<typename UnderlyingType, typename HandleType, std::uint32_t size>
 class HandleArray
 {
@@ -33,7 +39,14 @@ public:
 	HandleType emplace(Args&&... args)
 	{
 		auto handle = getFreeHandle();
-		new (&m_storage[handle]) UnderlyingType{ std::forward<Args>(args)... };
+		if constexpr ( IsStoredID<UnderlyingType>::value )
+		{
+			new (&m_storage[handle]) UnderlyingType{ handle, std::forward<Args>(args)... };
+		}
+		else
+		{
+			new (&m_storage[handle]) UnderlyingType{ std::forward<Args>(args)... };
+		}
 
 		return handle;
 	}

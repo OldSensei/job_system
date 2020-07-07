@@ -104,6 +104,8 @@ private:
 	std::atomic<std::uint32_t> m_unfinishedParentTasks;
 };
 
+class TaskGroupPool;
+
 class TaskGroup
 {
 
@@ -116,6 +118,11 @@ public:
 		std::uint32_t currentTask = std::numeric_limits<std::uint32_t>::max();
 	};
 
+	TaskGroup(std::uint16_t id, TaskGroupPool& pool) : m_groupId{id}, m_pool{ pool }
+	{}
+
+	~TaskGroup() = default;
+
 	template<typename Callable, typename ... Args>
 	size_t addNode(Callable&& callable, Args&&... args)
 	{
@@ -126,6 +133,7 @@ public:
 		std::lock_guard guard(m_nodeMutex);
 		size_t idx = m_nodes.size();
 		m_nodes.emplace_back(*this, idx, std::move(job), std::move(data), std::any());
+		++m_unfinishedJobNumbers;
 
 		return idx;
 	}
@@ -184,14 +192,23 @@ public:
 			m_nodes[index].onParentTaskFinished();
 		}
 
+		if (--m_unfinishedJobNumbers == 0)
+		{
+			decreaseReferenceCount();
+		}
 	}
 
 	bool isFinished() const
 	{
-		return m_currentRound >= m_topological.size();
+		return m_unfinishedJobNumbers == 0;
 	}
 
-	std::vector<TopologicalRound> topological()
+	bool isLastTask() const
+	{
+		return m_unfinishedJobNumbers == 1;
+	}
+
+	void topological()
 	{
 		std::vector<TopologicalRound> result;
 
@@ -220,7 +237,6 @@ public:
 
 
 		m_topological = result;
-		return result;
 	}
 
 	Context& get(size_t index)
@@ -232,6 +248,12 @@ public:
 	{
 		assert(m_refCount);
 		--m_refCount;
+
+		//first approach: remove immediately 
+		if (m_refCount == 0)
+		{
+			removeTaskGroup();
+		}
 	}
 
 	void increaseReferenceCount()
@@ -287,24 +309,41 @@ private:
 		}
 	}
 
+	void removeTaskGroup();
+
 	//temporary
 	std::mutex m_nodeMutex;
 	std::deque<NodeType> m_nodes;
 	std::vector<TopologicalRound> m_topological;
 	std::atomic<std::uint32_t> m_currentRound = 0;
 	std::atomic<std::uint32_t> m_refCount = 1;
+	std::atomic<std::uint32_t> m_unfinishedJobNumbers = 0;
+
+	std::uint16_t m_groupId;
+	TaskGroupPool& m_pool;
 };
 
+template<>
+struct IsStoredID<TaskGroup>
+{
+	static constexpr bool value = true;
+};
 
 using TaskGroupID = std::uint16_t;
 
 template<std::uint32_t PoolSize>
-class TaskGroupPool
+struct TaskGroupData
+{
+	HandleArray<TaskGroup, std::uint16_t, PoolSize> m_pool;
+};
+
+
+class TaskGroupPool : private TaskGroupData<250>
 {
 public:
 	TaskGroupID createTaskGroup()
 	{
-		return m_pool.emplace();
+		return m_pool.emplace(*this);
 	}
 
 	TaskGroup& get(TaskGroupID taskGroupHandle)
@@ -312,6 +351,13 @@ public:
 		return m_pool.get(taskGroupHandle);
 	}
 
-private:
-	HandleArray<TaskGroup, std::uint16_t, PoolSize> m_pool;
+	void removeTaskGroup(TaskGroupID taskGroupHandle)
+	{
+		m_pool.free(taskGroupHandle);
+	}
 };
+
+inline void TaskGroup::removeTaskGroup()
+{
+	m_pool.removeTaskGroup(m_groupId);
+}

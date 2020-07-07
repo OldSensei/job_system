@@ -1,7 +1,6 @@
 #pragma once
 #include "config.hpp"
 #include "context.hpp"
-#include "task_description.hpp"
 #include "task.hpp"
 
 class TaskFactory
@@ -23,5 +22,5 @@ public:
 	}
 
 private:
-	TaskGroupPool<Detail::POOL_SIZE> m_taskGroupPool = {};
+	TaskGroupPool m_taskGroupPool = {};
 };

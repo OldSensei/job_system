@@ -35,23 +35,19 @@ int main(int argc, const char* argv[])
 {
 	std::cout << "Task factory: " << std::endl;
 	std::unique_ptr<TaskFactory> tf = std::make_unique<TaskFactory>();
-	auto task = tf->createTask([]() -> void { std::cout << "Hello from t1!!!" << std::endl; });
-	task.then([](Task<void>&) -> void { std::cout << "Hello from t2!!!" << std::endl; });
-
-	std::cout << "Create task executer: " << std::endl;
 	TaskExecuter te(2);
-	te.push(task);
+	{
+		auto task = tf->createTask([]() -> void { std::cout << "Hello from t1!!!" << std::endl; });
+		task.then([](Task<void>&) -> void { std::cout << "Hello from t2!!!" << std::endl; });
+		task.then([](Task<void>&) -> int { std::cout << "Hello from t3!!!" << std::endl; return 5; });
+
+		std::cout << "Create task executer: " << std::endl;
+
+		te.push(task);
+	}
 	te.wait();
-	//auto t = createTask([]() -> void { std::cout << "Hello from t1!!!" << std::endl; });
-	//t.then([](Task<void>&)->void { std::cout << "Hello from t2!!!" << std::endl; });
-	//auto t2 = t.then([](Task<void>&)->int { std::cout << "Hello from t3!!!" << std::endl; return 2; });
-	//t2.then([](Task<int>& task)->void { std::cout << "Hello from t4: " << task.get() << std::endl; });
-	//t2.then([](Task<int>& task)->void { std::cout << "Hello from t4: " << task.get() << std::endl; });
 	
-	//std::cout << "========create executer============" << std::endl;
-	//TaskExecuter te(2);
-	//te.push(t);
-	//te.wait();
+	std::cout << "Scope has ended" << std::endl;
 
 	return 0;
 }
