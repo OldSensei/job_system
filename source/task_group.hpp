@@ -10,99 +10,7 @@
 #include "private/job_creator.hpp"
 
 #include "context.hpp"
-
-class TaskGroup;
-
-template<class ValueType, class IndexType>
-class TaskNode
-{
-public:
-	template<class Value = ValueType>
-	TaskNode(TaskGroup& tg, IndexType id, Value&& value) : m_value(std::forward<Value>(value)), m_ID(id), m_group(&tg), m_unfinishedParentTasks(0)
-	{}
-
-	template<typename ... Args>
-	TaskNode(TaskGroup& tg, IndexType id, Args&& ... args) :
-		m_value{std::forward<Args>(args)...},
-		m_ID(id),
-		m_group(&tg),
-		m_unfinishedParentTasks(0)
-	{}
-
-	TaskNode(TaskNode&& value) noexcept :
-		m_adjanced(std::move(value.m_adjanced)),
-		m_parents(std::move(value.m_parents)),
-		m_value(std::move(value.m_value)),
-		m_group(std::move(value.m_group)),
-		m_ID(value.m_ID),
-		m_unfinishedParentTasks(value.m_unfinishedParentTasks.load())
-	{}
-
-	void addAdjancedNode(const IndexType& nodeIndex)
-	{
-		m_adjanced.emplace_back(nodeIndex);
-	}
-
-	void addParent(const IndexType& nodeIndex)
-	{
-		m_parents.emplace_back(nodeIndex);
-		++this->m_unfinishedParentTasks;
-	}
-
-	const std::vector<IndexType>& getAdjancedNodes() const
-	{
-		return m_adjanced;
-	}
-
-	const std::vector<IndexType>& getParentsNodes() const
-	{
-		return m_parents;
-	}
-
-	ValueType& getValue()
-	{
-		return m_value;
-	}
-
-	TaskGroup& getGroup()
-	{
-		return *m_group;
-	}
-
-	const ValueType& getValue() const
-	{
-		return m_value;
-	}
-
-	size_t getParentsCount() const
-	{
-		return m_parents.size();
-	}
-
-	bool isAvailable() const
-	{
-		return m_unfinishedParentTasks == 0;
-	}
-
-	void onParentTaskFinished()
-	{
-		assert(m_unfinishedParentTasks > 0);
-		--m_unfinishedParentTasks;
-	}
-
-	IndexType getID()
-	{
-		return m_ID;
-	}
-
-private:
-	IndexType m_ID;
-	ValueType m_value;
-	TaskGroup* m_group;
-	std::vector<IndexType> m_adjanced;
-	std::vector<IndexType> m_parents;
-	std::atomic<std::uint32_t> m_unfinishedParentTasks;
-};
+#include "task_node.hpp"
 
 class TaskGroupPool;
 
@@ -138,128 +46,24 @@ public:
 		return idx;
 	}
 
-	void link(size_t from, size_t to)
-	{
-		auto& fromNode = m_nodes[from];
-		fromNode.addAdjancedNode(to);
-		auto& toNode = m_nodes[to];
-		toNode.addParent(from);
-	}
+	void link(size_t from, size_t to);
 
-	NodeType* getTaskNode(size_t nodeId)
-	{
-		assert(nodeId < m_nodes.size());
-		return &m_nodes[nodeId];
-	}
+	NodeType* getTaskNode(size_t nodeId);
+	NodeType* getAvailableTask();
 
-	NodeType* getAvailableTask()
-	{
-		if (m_currentRound >= m_topological.size())
-		{
-			return nullptr;
-		}
+	void hasComplited(NodeType& node);
 
-		if (m_topological[m_currentRound].currentTask >= m_topological[m_currentRound].taskRound.size())
-		{
-			++m_currentRound;
-			if (m_currentRound == m_topological.size())
-			{
-				return nullptr;
-			}
-		}
+	bool isFinished() const;
 
-		auto& round = m_topological[m_currentRound];
-		std::uint32_t index = round.currentTask;
-		while (index < round.taskRound.size()) // TODO: avoid going through all tasks
-		{
-			if (round.taskRound[index]->isAvailable())
-			{
-				auto copy = round.taskRound[round.currentTask];
-				round.taskRound[round.currentTask] = round.taskRound[index];
-				round.taskRound[index] = copy;
-				return round.taskRound[round.currentTask++];
-			}
-			++index;
-		}
+	bool isLastTask() const;
 
-		return nullptr;
-	}
+	void topological();
 
-	void hasComplited(NodeType& node)
-	{
-		for(const auto& index : node.getAdjancedNodes() )
-		{
-			m_nodes[index].onParentTaskFinished();
-		}
+	[[nodiscard]]
+	Context& get(size_t index);
 
-		if (--m_unfinishedJobNumbers == 0)
-		{
-			decreaseReferenceCount();
-		}
-	}
-
-	bool isFinished() const
-	{
-		return m_unfinishedJobNumbers == 0;
-	}
-
-	bool isLastTask() const
-	{
-		return m_unfinishedJobNumbers == 1;
-	}
-
-	void topological()
-	{
-		std::vector<TopologicalRound> result;
-
-		std::vector<TopologicalNode> vertexes;
-		size_t idx = 0;
-		for (const auto& node : m_nodes)
-		{
-			vertexes.emplace_back( idx, node.getParentsCount() );
-			++idx;
-		}
-
-		while (!vertexes.empty())
-		{
-			TopologicalRound round;
-			auto S = getOrphanNode(vertexes);
-			for ( auto& e : S )
-			{
-				auto& node = m_nodes[e.nodeId];
-				const auto& adjances = node.getAdjancedNodes();
-				round.taskRound.push_back( &node );
-				decreaseParentCount(vertexes, adjances);
-			}
-			round.currentTask = 0;
-			result.emplace_back(round);
-		}
-
-
-		m_topological = result;
-	}
-
-	Context& get(size_t index)
-	{
-		return m_nodes[index].getValue();
-	}
-
-	void decreaseReferenceCount()
-	{
-		assert(m_refCount);
-		--m_refCount;
-
-		//first approach: remove immediately 
-		if (m_refCount == 0)
-		{
-			removeTaskGroup();
-		}
-	}
-
-	void increaseReferenceCount()
-	{
-		++m_refCount;
-	}
+	void decreaseReferenceCount();
+	void increaseReferenceCount();
 
 private:
 
@@ -272,45 +76,12 @@ private:
 		size_t parentCount = 0;
 	};
 
-	std::vector<TopologicalNode> getOrphanNode(std::vector<TopologicalNode>& nodes)
-	{
-		std::vector<TopologicalNode> result;
+	std::vector<TopologicalNode> getOrphanNode(std::vector<TopologicalNode>& nodes);
 
-		auto iter = nodes.begin();
-		while ( iter != nodes.end() )
-		{
-			if (iter->parentCount == 0)
-			{
-				result.push_back(*iter);
-				iter = nodes.erase(iter);
-			}
-			else
-			{
-				++iter;
-			}
-		}
-
-		return result;
-	}
-
-	void decreaseParentCount(std::vector<TopologicalNode>& vertexes, const std::vector<size_t>& adjances)
-	{
-		for (auto& vertex : vertexes)
-		{
-			const auto& it = std::find_if(adjances.begin(), adjances.end(), [id = vertex.nodeId](const size_t& node)
-			{
-				return id == node;
-			});
-
-			if (it != adjances.end())
-			{
-				--vertex.parentCount;
-			}
-		}
-	}
-
+	void decreaseParentCount(std::vector<TopologicalNode>& vertexes, const std::vector<size_t>& adjances);
 	void removeTaskGroup();
 
+private:
 	//temporary
 	std::mutex m_nodeMutex;
 	std::deque<NodeType> m_nodes;
@@ -324,22 +95,16 @@ private:
 };
 
 template<>
-struct IsStoredID<TaskGroup>
+struct HandleArrayItemTraits<TaskGroup>
 {
-	static constexpr bool value = true;
+	static constexpr bool isStoredId = true;
 };
 
-using TaskGroupID = std::uint16_t;
-
-template<std::uint32_t PoolSize>
-struct TaskGroupData
+class TaskGroupPool
 {
-	HandleArray<TaskGroup, std::uint16_t, PoolSize> m_pool;
-};
+public:
+	using TaskGroupID = std::uint16_t;
 
-
-class TaskGroupPool : private TaskGroupData<250>
-{
 public:
 	TaskGroupID createTaskGroup()
 	{
@@ -355,9 +120,7 @@ public:
 	{
 		m_pool.free(taskGroupHandle);
 	}
-};
 
-inline void TaskGroup::removeTaskGroup()
-{
-	m_pool.removeTaskGroup(m_groupId);
-}
+private:
+	HandleArray<TaskGroup, std::uint16_t, 250> m_pool = {};
+};

@@ -2,11 +2,13 @@
 #include <array>
 #include <iostream>
 #include <cstdlib>
-
+#include <chrono>
 #include "../task.hpp"
 
 #include "../task_factory.hpp"
 #include "../task_executor.hpp"
+
+#include "../utils/time_utils.hpp"
 
 class A
 {
@@ -33,21 +35,30 @@ private:
 
 int main(int argc, const char* argv[])
 {
-	std::cout << "Task factory: " << std::endl;
-	std::unique_ptr<TaskFactory> tf = std::make_unique<TaskFactory>();
-	TaskExecuter te(2);
+	using namespace std::chrono_literals;
+
+	std::uint64_t dTime = 0;
 	{
-		auto task = tf->createTask([]() -> void { std::cout << "Hello from t1!!!" << std::endl; });
-		task.then([](Task<void>&) -> void { std::cout << "Hello from t2!!!" << std::endl; });
-		task.then([](Task<void>&) -> int { std::cout << "Hello from t3!!!" << std::endl; return 5; });
+		std::unique_ptr<TaskFactory> tf = std::make_unique<TaskFactory>();
+		TaskExecuter te(3);
+		Task<void> task;
+		Task<void> task2;
+		{
+			ScopedTimer t(dTime);
+			task = tf->createTask([]() -> void { std::cout << "Hello from t1!!!" << std::endl; });
+			task2 = task.then([](Task<void>&) -> void { std::cout << "Hello from t2!!!" << std::endl; });
+			task2.then([](Task<void>&) { std::this_thread::sleep_for(1s); std::cout << "Hello from t3!!!" << std::endl; });
+			task.then([](Task<void>&) -> int { std::this_thread::sleep_for(4s); std::cout << "Hello from t4!!!" << std::endl; return 5; });
+			task.then([](Task<void>&) -> int { std::cout << "Hello from t5!!!" << std::endl; return 5; });
+		}
 
-		std::cout << "Create task executer: " << std::endl;
+		task2.wait(te);
+		std::cout << "Scope has ended" << std::endl;
 
-		te.push(task);
+		te.wait();
 	}
-	te.wait();
-	
-	std::cout << "Scope has ended" << std::endl;
+
+	std::cout << "Ellapsed time (n sec) : " << dTime << std::endl;
 
 	return 0;
 }

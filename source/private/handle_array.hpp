@@ -6,16 +6,19 @@
 #include <mutex>
 
 template<typename T>
-struct IsStoredID
+struct HandleArrayItemTraits
 {
-	static constexpr bool value = false;
+	static constexpr bool isStoredId = false;
 };
 
 template<typename UnderlyingType, typename HandleType, std::uint32_t size>
 class HandleArray
 {
 public:
-	HandleArray()
+	HandleArray() :
+		m_handleMutex{},
+		m_storage{},
+		m_freeHandles{}
 	{
 		for (std::uint32_t index = 0; index < size; ++index)
 			m_freeHandles.push(static_cast<HandleType>(index)); //to many allocation ((((
@@ -39,7 +42,7 @@ public:
 	HandleType emplace(Args&&... args)
 	{
 		auto handle = getFreeHandle();
-		if constexpr ( IsStoredID<UnderlyingType>::value )
+		if constexpr ( HandleArrayItemTraits<UnderlyingType>::isStoredId )
 		{
 			new (&m_storage[handle]) UnderlyingType{ handle, std::forward<Args>(args)... };
 		}

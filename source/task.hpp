@@ -8,11 +8,19 @@
 #include <list>
 
 #include "task_group.hpp"
+#include "task_executor.hpp"
+
 
 template<typename ReturnedType>
 class Task
 {
 public:
+
+	Task() noexcept :
+		m_taskNode(nullptr)
+	{
+
+	}
 
 	Task( TaskGroup::NodeType* taskNode ) noexcept :
 		m_taskNode(taskNode)
@@ -50,9 +58,11 @@ public:
 				m_taskNode->getGroup().decreaseReferenceCount();
 			}
 
-			m_taskNode = other.m_description;
+			m_taskNode = other.m_taskNode;
 			m_taskNode->getGroup().increaseReferenceCount();
 		}
+
+		return *this;
 	}
 
 	template<typename Callable, typename ... Args>
@@ -78,6 +88,12 @@ public:
 	template<typename Type_ = ReturnedType>
 	typename std::enable_if_t< std::is_same<Type_, void>::value > get()
 	{}
+
+	void wait(TaskExecuter& executor)
+	{
+		assert(m_taskNode);
+		m_taskNode->wait(executor);
+	}
 
 private:
 	friend class TaskExecuter;

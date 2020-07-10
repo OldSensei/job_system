@@ -16,13 +16,26 @@ set(PRIVATE_SOURCES
 
 source_group("private" FILES ${PRIVATE_SOURCES})
 
+set(UTILS_SOURCES
+	${SOURCE_DIR}/utils/event.hpp
+	${SOURCE_DIR}/utils/time_utils.cpp
+	${SOURCE_DIR}/utils/time_utils.hpp
+	${SOURCE_DIR}/utils/semaphore.cpp
+	${SOURCE_DIR}/utils/semaphore.hpp
+)
+source_group("utils" FILES ${UTILS_SOURCES})
+
 set(JOB_SYSTEM_SOURCES
-	${SOURCE_DIR}/config.hpp
 	${SOURCE_DIR}/context.hpp
 	${SOURCE_DIR}/task.hpp
+	${SOURCE_DIR}/task_executor.cpp
 	${SOURCE_DIR}/task_executor.hpp
 	${SOURCE_DIR}/task_factory.hpp
+	${SOURCE_DIR}/task_group_queue.cpp
+	${SOURCE_DIR}/task_group_queue.hpp
+	${SOURCE_DIR}/task_group.cpp
 	${SOURCE_DIR}/task_group.hpp
+	${SOURCE_DIR}/task_node.hpp
 )
 
 source_group("JobSystem" FILES ${JOB_SYSTEM_SOURCES})
@@ -32,4 +45,5 @@ add_executable( ${PROJECT_NAME}
 		${SOURCE_DIR}/executables/main.cpp
 		${PRIVATE_SOURCES}
 		${JOB_SYSTEM_SOURCES}
+		${UTILS_SOURCES}
 )
